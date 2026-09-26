@@ -18,6 +18,16 @@
 go install github.com/ramsesyok/json-diff-with-epsilon/cmd/jsondiff-eps@latest
 ```
 
+Go がない環境では、[Releases](https://github.com/ramsesyok/json-diff-with-epsilon/releases) から OS / アーキテクチャに合ったアーカイブ（Linux / macOS / Windows × amd64 / arm64）をダウンロードし、`jsondiff-eps` を PATH の通った場所に置いてください。
+
+```sh
+# 例: Linux amd64
+curl -fsSL -o jsondiff-eps.tar.gz \
+  https://github.com/ramsesyok/json-diff-with-epsilon/releases/download/v0.1.0/jsondiff-eps_v0.1.0_linux_amd64.tar.gz
+tar -xzf jsondiff-eps.tar.gz jsondiff-eps
+sudo install jsondiff-eps /usr/local/bin/
+```
+
 ## 使い方
 
 ```
@@ -164,6 +174,12 @@ CI（`.github/workflows/ci.yml`）では次を実行します。
 | test | Linux・macOS・Windows × Go 1.24 / 最新安定版で `go test -race`（カバレッジをジョブサマリーに出力） |
 | fuzz | 各ファズターゲットを 60 秒ずつ実行（失敗入力を artifact として保存） |
 | e2e-runn | runn（バージョン固定）で `examples/runn` の runbook を実行。HTTP サーバー経由のシナリオを含む |
+| release-check | GoReleaser の設定でスナップショットビルド（リリース設定の検証） |
 | govulncheck | 依存関係の既知脆弱性チェック |
+
+### リリース
+
+`v*` 形式のタグを push すると、`.github/workflows/release.yml` が GoReleaser で各 OS 向けバイナリをビルドし、GitHub Release を作成します。
+Actions 画面から「Release」ワークフローを手動実行（`tag` に `v0.2.0` などを指定）しても、タグ作成とリリースを行えます。
 
 ファジングで見つかった失敗入力は `testdata/fuzz/` に置くと、通常の `go test` で回帰テストとして実行されます。

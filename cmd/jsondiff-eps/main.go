@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -22,7 +23,20 @@ const (
 	exitError = 2
 )
 
+// version is set by the release build with -ldflags "-X main.version=...".
 var version = "dev"
+
+// currentVersion returns version, or for a binary built with
+// "go install ...@vX.Y.Z" the module version recorded in the build info.
+func currentVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
 
 const usage = `Usage: jsondiff-eps [flags] <expected> <actual>
 
@@ -131,7 +145,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, tty bool) int
 		return fail(stderr, "%v\n\n%s", err, usage)
 	}
 	if o.version {
-		fmt.Fprintln(stdout, "jsondiff-eps", version)
+		fmt.Fprintln(stdout, "jsondiff-eps", currentVersion())
 		return exitEqual
 	}
 	if len(o.args) != 2 {
