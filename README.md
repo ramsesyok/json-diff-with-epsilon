@@ -117,31 +117,171 @@ tolerances:         # パスごとの許容誤差（配下も含む）
 
 ## runn から使う
 
-```yaml
-steps:
-  req:
-    req:
-      /api/stats:
-        get: {}
-  compare:
-    exec:
-      command: jsondiff-eps --config rules.yaml testdata/expected.json -
-      stdin: '{{ toJSON(steps.req.res.body) }} '
-    test: current.exit_code == 0
-```
+runn の `exec` ステップから `jsondiff-eps` を呼び出し、API のレスポンスを期待値ファイルと比較します。
+以下の内容は runn 1.11.0 で動作を確認しています。
+
+### 前提
+
+- `jsondiff-eps` が PATH の通った場所にあること（[インストール](#インストール)参照）
+- runn 1.x では `exec` の実行に **`--scopes run:exec`** が必要です
 
 ```sh
 runn run --scopes run:exec scenario.yml
 ```
 
-- runn 1.x では `exec` の実行に `--scopes run:exec` が必要です。
-- `stdin` の `}}` の後ろの **空白は必須** です。`'{{ toJSON(...) }}'` とすると runn が展開後の JSON を YAML のマップとして解釈し、`invalid stdin` エラーになります。
+### 基本形：レスポンスを期待値ファイルと比較する
 
-動作するサンプルが [examples/runn](examples/runn) にあります。
+```yaml
+desc: 統計 API のレスポンスを期待値と比較する
+runners:
+  req: https://api.example.com
+steps:
+  get_stats:
+    req:
+      /api/stats:
+        get:
+          body: null
+    test: current.res.status == 200
+  compare:
+    exec:
+      command: jsondiff-eps --config rules.yaml testdata/stats.json -
+      stdin: '{{ toJSON(steps.get_stats.res.body) }} '
+    test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
+```
+
+- 1 つ目の引数が期待値ファイル、2 つ目の `-` が標準入力（レスポンス）です。
+- **`stdin` の `}}` の後ろの空白は必須です。** `'{{ toJSON(...) }}'` とすると runn が展開後の JSON を YAML のマップとして解釈し、`invalid stdin` エラーになります。ブロックスカラー（`stdin: |`）も末尾に文字どおりの `\n` が付いて JSON として不正になるため使えません。
+- 無視するキーや許容誤差は `rules.yaml` に書きます（[設定ファイル](#設定ファイル)参照）。
+
+### test の書き方
+
+| 書き方 | 用途 |
+|---|---|
+| `current.stdout == "" && current.stderr == "" && current.exit_code == 0` | **推奨。** 失敗時に差分やエラーメッセージが runn の出力にそのまま表示されます |
+| `current.exit_code == 0` | 簡潔ですが、失敗時に差分の内容は表示されません |
+| `fromJSON(current.stdout).summary.differences == 0` | `--format json` と組み合わせて、差分の中身を条件にする場合 |
+
+推奨の書き方では、一致時は標準出力・標準エラー出力とも空になることを利用しています。`current.stdout == ""` を **先頭に** 書くのがポイントです（runn は `&&` の左側で結果が決まると右側を評価・表示しません）。失敗時は次のように表示されます。
+
+```
+  Condition:
+    current.stdout == "" && current.stderr == "" && current.exit_code == 0
+    │
+    ├── current.stdout == "" && current.stderr == "" => false
+    │   ├── current.stdout == "" => false
+    │   │   ├── current.stdout => "~ .items[0].price: 100.5 → 100.62 (diff=0.12, tolerance: abs=0.01 rel=0 by \".items[].price\")
+    │   │   │   ~ .status: \"ok\" → \"error\"
+    │   │   │
+    │   │   │   2 differences (compared 12 values, ignored 1)
+    │   │   │   "
+```
+
+`current.exit_code` の値の意味は次のとおりです。
+
+| `current.exit_code` | 意味 |
+|---|---|
+| 0 | 一致（差はすべて許容誤差内、または ignore 対象） |
+| 1 | 差分あり |
+| 2 | エラー（ファイルがない、JSON が不正、設定ファイルの誤りなど。内容は `current.stderr`） |
+
+### 差分の中身を条件にする（JSON 出力）
+
+`--format json` を付けると結果を JSON で受け取れるので、`fromJSON(current.stdout)` で細かく判定できます。
+
+```yaml
+  compare:
+    exec:
+      command: jsondiff-eps --format json --config rules.yaml testdata/stats.json -
+      stdin: '{{ toJSON(steps.get_stats.res.body) }} '
+    test: |
+      fromJSON(current.stdout).equal
+      || all(fromJSON(current.stdout).differences, { .path startsWith ".debug" })
+```
+
+JSON 出力の形式は [出力例](#出力例) を参照してください。
+
+### ファイルパスの基準
+
+`exec` のコマンドは **runn を実行したカレントディレクトリ** で実行されます（runbook の場所ではありません）。一方、`vars` の `json://` などは runbook の場所が基準です。
+
+- runbook のあるディレクトリで `runn run` を実行するか、
+- カレントディレクトリからのパスで期待値ファイル・設定ファイルを指定してください。
+
+別のディレクトリから実行してファイルが見つからない場合は、終了コード 2 と `current.stderr` に `open testdata/stats.json: no such file or directory` のようなメッセージが出ます。
+
+### 複数の API を同じ手順で比較する
+
+期待値ファイルのパスを `vars` に置くと、ステップを使い回しやすくなります。
+
+```yaml
+vars:
+  expected_dir: testdata
+steps:
+  get_stats:
+    req:
+      /api/stats:
+        get:
+          body: null
+  compare_stats:
+    exec:
+      command: jsondiff-eps --config rules.yaml {{ vars.expected_dir }}/stats.json -
+      stdin: '{{ toJSON(steps.get_stats.res.body) }} '
+    test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
+  get_users:
+    req:
+      /api/users:
+        get:
+          body: null
+  compare_users:
+    exec:
+      command: jsondiff-eps --config rules.yaml --unordered . {{ vars.expected_dir }}/users.json -
+      stdin: '{{ toJSON(steps.get_users.res.body) }} '
+    test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
+```
+
+CLI オプション（`--ignore`、`--unordered`、`--abs`、`--rel`）は設定ファイルに追加・上書きされるので、共通のルールは `rules.yaml` に、API 固有の指定はコマンドに書く、という使い分けができます。
+
+### 期待値ファイルを作る・更新する
+
+runn の `dump` の `out` でレスポンスをファイルに保存できます。初回の期待値作成や、仕様変更時の更新に使えます（保存した内容は目視で確認してからコミットしてください）。
+
+```yaml
+desc: 期待値ファイルを更新する
+runners:
+  req: https://api.example.com
+steps:
+  get_stats:
+    req:
+      /api/stats:
+        get:
+          body: null
+  save:
+    dump:
+      expr: steps.get_stats.res.body
+      out: testdata/stats.json
+```
+
+### よくあるエラー
+
+| 症状 | 原因と対処 |
+|---|---|
+| `scope error: exec runner is not allowed` | `runn run --scopes run:exec ...` で実行する |
+| `invalid exec command: invalid stdin` | `stdin` の `}}` の後ろに空白を入れる（`'{{ toJSON(...) }} '`） |
+| `current.exit_code => 2`、`no such file or directory` | カレントディレクトリ基準のパスになっていない（[ファイルパスの基準](#ファイルパスの基準)） |
+| `current.exit_code => 2`、`unexpected data after the JSON value` | `stdin: \|` のブロックスカラーを使っている。1 行の `'{{ toJSON(...) }} '` にする |
+| 一致するはずの数値が差分になる | 既定の許容誤差は 0。`default.abs` / `tolerances` を設定する。表示される `tolerance: ... by "..."` で、どのルールが適用されたか確認できる |
+
+### サンプル
+
+動作するサンプルが [examples/runn](examples/runn) にあります（CI でも実行しています）。
 
 ```sh
 cd examples/runn
 runn run --scopes run:exec compare.yml --verbose
+
+# HTTP 経由のシナリオ（別ターミナルで examples/runn を配信しておく）
+python3 -m http.server 18080 --bind 127.0.0.1
+runn run --scopes run:exec http.yml --verbose
 ```
 
 ## ライブラリとして使う

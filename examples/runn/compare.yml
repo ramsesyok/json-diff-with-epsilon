@@ -11,7 +11,7 @@ steps:
     exec:
       command: jsondiff-eps --config rules.yaml expected.json -
       stdin: '{{ toJSON(vars.actual) }} '
-    test: current.exit_code == 0
+    test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
   compare_json:
     exec:
       command: jsondiff-eps --format json --config rules.yaml expected.json -
