@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"reflect"
 	"sort"
@@ -375,10 +376,28 @@ func (w *walker) walkOrdered(e, a []any, pe, pa Path, tol AppliedTolerance) {
 
 // walkUnordered pairs each expected element with the first unpaired actual
 // element that compares equal, then reports the elements left unpaired.
+//
+// Ignored elements are set aside first: compared against anything they
+// produce no differences, so they would otherwise pair with (and hide) an
+// unrelated element.
 func (w *walker) walkUnordered(e, a []any, pe, pa Path, tol AppliedTolerance) {
-	paired := make([]bool, len(a))
-	var unpaired []int
+	var candidates []int
 	for i := range e {
+		if w.m.ignore.has(pe.child(i), nil) {
+			w.ignored++
+			continue
+		}
+		candidates = append(candidates, i)
+	}
+	paired := make([]bool, len(a))
+	for j := range a {
+		if w.m.ignore.has(nil, pa.child(j)) {
+			w.ignored++
+			paired[j] = true
+		}
+	}
+	var unpaired []int
+	for _, i := range candidates {
 		found := false
 		for j := range a {
 			if paired[j] {
@@ -409,44 +428,95 @@ func (w *walker) walkUnordered(e, a []any, pe, pa Path, tol AppliedTolerance) {
 }
 
 func (w *walker) compareNumbers(e, a any, pe Path, tol AppliedTolerance) {
-	re, okE := toRat(e)
-	ra, okA := toRat(a)
+	es, okE := numberLiteral(e)
+	as, okA := numberLiteral(a)
 	if !okE || !okA {
 		w.add(Difference{Path: pe.String(), Kind: KindChanged, Expected: e, Actual: a})
 		return
 	}
+	within, diff, ok := numbersWithin(es, as, tol)
+	if within {
+		return
+	}
+	d := Difference{Path: pe.String(), Kind: KindChanged, Expected: e, Actual: a}
+	if ok {
+		d.Tolerance = &tol
+		if !math.IsInf(diff, 0) {
+			d.Diff = &diff
+		}
+	}
+	w.add(d)
+}
+
+const (
+	// exactExpLimit bounds the binary exponent (about 1e±1200) up to which
+	// numbers are compared as exact rationals. Beyond it they are compared
+	// as floatPrec-bit floats, since exact arithmetic on literals such as
+	// 1e1000000 would need millions of digits.
+	exactExpLimit = 4000
+	floatPrec     = 512
+)
+
+// numbersWithin reports whether two number literals are within the
+// tolerance, and their absolute difference. ok is false when the difference
+// cannot be computed (a literal outside the representable range); the
+// literals are then only equal when they are identical.
+func numbersWithin(es, as string, tol AppliedTolerance) (within bool, diff float64, ok bool) {
+	fe, _, errE := big.ParseFloat(es, 10, floatPrec, big.ToNearestEven)
+	fa, _, errA := big.ParseFloat(as, 10, floatPrec, big.ToNearestEven)
+	if errE != nil || errA != nil || fe.IsInf() || fa.IsInf() {
+		return es == as, 0, false
+	}
+	if within, diff, ok := ratsWithin(es, as, fe, fa, tol); ok {
+		return within, diff, true
+	}
+	d := new(big.Float).SetPrec(floatPrec).Sub(fe, fa)
+	d.Abs(d)
+	diff, _ = d.Float64()
+	if d.Cmp(big.NewFloat(tol.Abs)) <= 0 {
+		return true, diff, true
+	}
+	limit := new(big.Float).SetPrec(floatPrec).Abs(fe)
+	limit.Mul(limit, big.NewFloat(tol.Rel))
+	return d.Cmp(limit) <= 0, diff, true
+}
+
+// ratsWithin compares the literals as exact rationals when both are within
+// exactExpLimit. ok is false when they are not, including literals that
+// underflowed to zero as floats (such as 1e-700000000) and that big.Rat
+// cannot parse; those are compared as floats.
+func ratsWithin(es, as string, fe, fa *big.Float, tol AppliedTolerance) (within bool, diff float64, ok bool) {
+	if !exactRange(fe) || !exactRange(fa) {
+		return false, 0, false
+	}
+	re, okE := new(big.Rat).SetString(es)
+	ra, okA := new(big.Rat).SetString(as)
+	if !okE || !okA {
+		return false, 0, false
+	}
 	d := new(big.Rat).Sub(re, ra)
 	d.Abs(d)
-	if d.Sign() == 0 {
-		return
-	}
-	abs := floatRat(tol.Abs)
-	if d.Cmp(abs) <= 0 {
-		return
+	diff, _ = d.Float64()
+	if d.Cmp(decimalRat(tol.Abs)) <= 0 {
+		return true, diff, true
 	}
 	limit := new(big.Rat).Abs(re)
-	limit.Mul(limit, floatRat(tol.Rel))
-	if d.Cmp(limit) <= 0 {
-		return
-	}
-	df, _ := d.Float64()
-	w.add(Difference{Path: pe.String(), Kind: KindChanged, Expected: e, Actual: a, Diff: &df, Tolerance: &tol})
+	limit.Mul(limit, decimalRat(tol.Rel))
+	return d.Cmp(limit) <= 0, diff, true
 }
 
-// toRat parses a number exactly from its literal.
-func toRat(v any) (*big.Rat, bool) {
-	s, ok := numberLiteral(v)
-	if !ok {
-		return nil, false
+func exactRange(f *big.Float) bool {
+	if f.Sign() == 0 {
+		return true
 	}
-	r, ok := new(big.Rat).SetString(s)
-	return r, ok
+	exp := f.MantExp(nil)
+	return exp <= exactExpLimit && exp >= -exactExpLimit
 }
 
-// floatRat converts a tolerance to the decimal it was most likely written as
-// (0.3 rather than 0.299999999999999988898), so that a difference of exactly
-// the tolerance is accepted.
-func floatRat(f float64) *big.Rat {
+// decimalRat converts a tolerance to the decimal it was most likely written
+// as (0.3 rather than 0.299999999999999988898), so that a difference of
+// exactly the tolerance is accepted.
+func decimalRat(f float64) *big.Rat {
 	r, _ := new(big.Rat).SetString(strconv.FormatFloat(f, 'g', -1, 64))
 	return r
 }

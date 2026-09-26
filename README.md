@@ -147,3 +147,23 @@ if !res.Equal {
 	res.WriteText(os.Stdout, false)
 }
 ```
+
+## 開発
+
+```sh
+go test -race ./...                                           # ユニットテスト
+go test -run '^$' -fuzz '^FuzzCompare$' -fuzztime 60s .       # ファジング
+go install ./cmd/jsondiff-eps && scripts/e2e-runn.sh          # runn による E2E（runn / python3 / curl が必要）
+```
+
+CI（`.github/workflows/ci.yml`）では次を実行します。
+
+| ジョブ | 内容 |
+|---|---|
+| lint | gofmt / `go mod tidy -diff` / go vet / staticcheck |
+| test | Linux・macOS・Windows × Go 1.24 / 最新安定版で `go test -race`（カバレッジをジョブサマリーに出力） |
+| fuzz | 各ファズターゲットを 60 秒ずつ実行（失敗入力を artifact として保存） |
+| e2e-runn | runn（バージョン固定）で `examples/runn` の runbook を実行。HTTP サーバー経由のシナリオを含む |
+| govulncheck | 依存関係の既知脆弱性チェック |
+
+ファジングで見つかった失敗入力は `testdata/fuzz/` に置くと、通常の `go test` で回帰テストとして実行されます。

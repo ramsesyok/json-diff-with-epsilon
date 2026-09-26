@@ -1,6 +1,7 @@
 package jsondiff
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -34,9 +35,8 @@ func (p Path) String() string {
 				if b.Len() == 0 {
 					b.WriteString(".")
 				}
-				q, _ := json.Marshal(e)
 				b.WriteString("[")
-				b.Write(q)
+				b.WriteString(quoteKey(e))
 				b.WriteString("]")
 			}
 		case int:
@@ -49,6 +49,16 @@ func (p Path) String() string {
 		}
 	}
 	return b.String()
+}
+
+// quoteKey quotes a key as a JSON string, which jq accepts, without the
+// HTML escaping of json.Marshal (so "<x>" stays readable).
+func quoteKey(k string) string {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(k)
+	return strings.TrimSuffix(buf.String(), "\n")
 }
 
 func (p Path) child(e any) Path {
