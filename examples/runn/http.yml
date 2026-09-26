@@ -1,0 +1,26 @@
+desc: Compare an HTTP response body with an expected file using jsondiff-eps
+# Serve this directory before running, for example:
+#   python3 -m http.server 18080 --bind 127.0.0.1
+runners:
+  req: http://127.0.0.1:18080
+steps:
+  get:
+    req:
+      /actual.json:
+        get:
+          body: null
+    test: current.res.status == 200
+  compare:
+    exec:
+      command: jsondiff-eps --config rules.yaml expected.json -
+      # The trailing space after }} is required; see README.
+      stdin: '{{ toJSON(steps.get.res.body) }} '
+    test: current.exit_code == 0
+  compare_strict:
+    exec:
+      command: jsondiff-eps --format json expected.json -
+      stdin: '{{ toJSON(steps.get.res.body) }} '
+    test: |
+      current.exit_code == 1
+      && len(fromJSON(current.stdout).differences) == fromJSON(current.stdout).summary.differences
+      && fromJSON(current.stdout).differences[0].path == ".items[0].amount"

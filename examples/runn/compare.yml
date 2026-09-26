@@ -1,0 +1,28 @@
+desc: Compare a JSON response with an expected file using jsondiff-eps
+vars:
+  actual: json://actual.json
+steps:
+  # In a real scenario the input would be an HTTP response body such as
+  # steps.req.res.body.
+  #
+  # Note the trailing space after }} in stdin: without it runn parses the
+  # expanded JSON back into a YAML map and rejects it as stdin.
+  compare:
+    exec:
+      command: jsondiff-eps --config rules.yaml expected.json -
+      stdin: '{{ toJSON(vars.actual) }} '
+    test: current.exit_code == 0
+  compare_json:
+    exec:
+      command: jsondiff-eps --format json --config rules.yaml expected.json -
+      stdin: '{{ toJSON(vars.actual) }} '
+    test: |
+      current.exit_code == 0
+      && fromJSON(current.stdout).summary.differences == 0
+  detect_difference:
+    exec:
+      command: jsondiff-eps --format json expected.json -
+      stdin: '{{ toJSON(vars.actual) }} '
+    test: |
+      current.exit_code == 1
+      && fromJSON(current.stdout).summary.differences > 0
