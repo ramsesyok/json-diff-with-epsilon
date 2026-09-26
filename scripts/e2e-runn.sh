@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the runbooks in examples/runn with runn against the jsondiff-eps on PATH.
-# Requires runn, jsondiff-eps, python3 and curl.
+# Run the runbooks in examples/runn with runn against the runnora-diff on PATH.
+# Requires runn, runnora-diff, python3 and curl.
 set -euo pipefail
 
 cd "$(dirname "$0")/../examples/runn"

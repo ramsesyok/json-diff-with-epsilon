@@ -1,4 +1,4 @@
-// Command jsondiff-eps compares two JSON documents with numeric tolerance.
+// Command runnora-diff compares two JSON documents with numeric tolerance.
 //
 // Exit status is 0 when the documents are equal, 1 when they differ and 2 on
 // errors.
@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	jsondiff "github.com/ramsesyok/json-diff-with-epsilon"
+	"github.com/ramsesyok/runnora-diff/jsondiff"
 )
 
 const (
@@ -38,7 +38,7 @@ func currentVersion() string {
 	return version
 }
 
-const usage = `Usage: jsondiff-eps [flags] <expected> <actual>
+const usage = `Usage: runnora-diff [flags] <expected> <actual>
 
 Compare two JSON documents, treating numbers within a tolerance as equal.
 Either <expected> or <actual> may be "-" to read it from standard input.
@@ -102,7 +102,7 @@ type cliOptions struct {
 
 func parseArgs(args []string, stderr io.Writer) (*cliOptions, error) {
 	o := &cliOptions{}
-	fs := flag.NewFlagSet("jsondiff-eps", flag.ContinueOnError)
+	fs := flag.NewFlagSet("runnora-diff", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&o.config, "c", "", "")
 	fs.StringVar(&o.config, "config", "", "")
@@ -145,7 +145,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, tty bool) int
 		return fail(stderr, "%v\n\n%s", err, usage)
 	}
 	if o.version {
-		fmt.Fprintln(stdout, "jsondiff-eps", currentVersion())
+		fmt.Fprintln(stdout, "runnora-diff", currentVersion())
 		return exitEqual
 	}
 	if len(o.args) != 2 {
@@ -232,7 +232,7 @@ func readDoc(name string, stdin io.Reader) (any, error) {
 }
 
 func fail(stderr io.Writer, format string, a ...any) int {
-	fmt.Fprintf(stderr, "jsondiff-eps: "+format+"\n", a...)
+	fmt.Fprintf(stderr, "runnora-diff: "+format+"\n", a...)
 	return exitError
 }
 

@@ -1,4 +1,4 @@
-desc: Compare an HTTP response body with an expected file using jsondiff-eps
+desc: Compare an HTTP response body with an expected file using runnora-diff
 # Serve this directory before running, for example:
 #   python3 -m http.server 18080 --bind 127.0.0.1
 runners:
@@ -12,13 +12,13 @@ steps:
     test: current.res.status == 200
   compare:
     exec:
-      command: jsondiff-eps --config rules.yaml expected.json -
+      command: runnora-diff --config rules.yaml expected.json -
       # The trailing space after }} is required; see README.
       stdin: '{{ toJSON(steps.get.res.body) }} '
     test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
   compare_strict:
     exec:
-      command: jsondiff-eps --format json expected.json -
+      command: runnora-diff --format json expected.json -
       stdin: '{{ toJSON(steps.get.res.body) }} '
     test: |
       current.exit_code == 1

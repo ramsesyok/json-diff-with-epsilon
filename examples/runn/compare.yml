@@ -1,4 +1,4 @@
-desc: Compare a JSON response with an expected file using jsondiff-eps
+desc: Compare a JSON response with an expected file using runnora-diff
 vars:
   actual: json://actual.json
 steps:
@@ -9,19 +9,19 @@ steps:
   # expanded JSON back into a YAML map and rejects it as stdin.
   compare:
     exec:
-      command: jsondiff-eps --config rules.yaml expected.json -
+      command: runnora-diff --config rules.yaml expected.json -
       stdin: '{{ toJSON(vars.actual) }} '
     test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
   compare_json:
     exec:
-      command: jsondiff-eps --format json --config rules.yaml expected.json -
+      command: runnora-diff --format json --config rules.yaml expected.json -
       stdin: '{{ toJSON(vars.actual) }} '
     test: |
       current.exit_code == 0
       && fromJSON(current.stdout).summary.differences == 0
   detect_difference:
     exec:
-      command: jsondiff-eps --format json expected.json -
+      command: runnora-diff --format json expected.json -
       stdin: '{{ toJSON(vars.actual) }} '
     test: |
       current.exit_code == 1
