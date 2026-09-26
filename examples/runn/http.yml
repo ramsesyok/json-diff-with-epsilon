@@ -15,7 +15,7 @@ steps:
       command: jsondiff-eps --config rules.yaml expected.json -
       # The trailing space after }} is required; see README.
       stdin: '{{ toJSON(steps.get.res.body) }} '
-    test: current.exit_code == 0
+    test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
   compare_strict:
     exec:
       command: jsondiff-eps --format json expected.json -
