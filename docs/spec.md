@@ -63,8 +63,9 @@ JSON の型（object / array / string / number / boolean / null）を区別す�
 |expected - actual| <= rel * |expected|
 ```
 
-- `abs = 0` かつ `rel = 0` の場合は、元の数値リテラルを任意精度（`big.Rat`）で厳密比較する（巨大整数・高精度小数でも丸め誤差なし）。
-- それ以外は `float64` で計算する。
+- 差の計算は、元の数値リテラルを任意精度の有理数（`big.Rat`）として行う（巨大整数・高精度小数でも丸め誤差なし）。
+- 許容誤差の値は最短の 10 進表現（`0.3` など）として扱う。このため `100.5` と `100.51` の差は `abs: 0.01` ちょうどで一致と判定される（`float64` で計算した場合のような境界での誤判定がない）。
+- 表示用の `diff` は `float64` に変換した値。
 
 ## 4. パス指定
 
@@ -80,7 +81,9 @@ runn の `compare` / `diff` 関数の `ignorePaths` と揃え、**jq のパス�
 | 条件付き | `.items[] \| select(.type == "tax") \| .amount` |
 
 - パス式は expected / actual の **両方** に対して評価し、得られたパスの和集合をルールの適用対象とする（片方にしか存在しないノードにも ignore を効かせるため）。
-- 評価時のエラー（存在しないキーへのアクセスなど）はそのドキュメントについて「一致なし」として扱う。構文エラーは終了コード 2。
+- ドキュメントの形に起因する評価時エラー（`null` の反復など）は、そのドキュメントについてそれ以降「一致なし」として扱う。
+- 構文エラー、およびパス式でない式（`1`、`.a | tostring` など）は設定エラー（終了コード 2）。
+- スライス（`.[1:3]`）で得られるパスは単一ノードに対応しないため無視する。
 - ignore / tolerances は、一致したノード **とその配下すべて** に適用される。
 
 ## 5. ルールの優先順位
@@ -168,6 +171,7 @@ tolerances:
 | `!` | `type_mismatch` | 型の相違 |
 
 - 数値の相違には差（`diff`）と適用された許容誤差・由来ルール（`default` の場合は `by default`）を表示する。
+- 差分は object のキー順（辞書順）・配列のインデックス順に並ぶ。
 - 一致時は何も出力しない（`-v` 指定時は要約行のみ）。
 
 ### 7.2 json
@@ -191,6 +195,8 @@ tolerances:
 
 - 一致時も `{"equal": true, "differences": [], ...}` を出力する。
 - `removed` では `actual`、`added` では `expected` を省略する。`diff` / `tolerance` は数値の `changed` のみ。
+- `type_mismatch` では `expected_type` / `actual_type`（`object` / `array` / `string` / `number` / `boolean` / `null`）を追加する。
+- 由来ルールが既定値の場合、`tolerance.rule` は `"default"`。
 
 ## 8. 終了コード
 
@@ -211,7 +217,7 @@ steps:
   compare:
     exec:
       command: jsondiff-eps --config rules.yaml testdata/expected.json -
-      stdin: '{{ toJSON(steps.req.res.body) }}'
+      stdin: '{{ toJSON(steps.req.res.body) }} '
     test: current.exit_code == 0
 ```
 
@@ -221,11 +227,19 @@ JSON 出力を条件判定に使う場合:
   compare:
     exec:
       command: jsondiff-eps --format json -c rules.yaml testdata/expected.json -
-      stdin: '{{ toJSON(steps.req.res.body) }}'
+      stdin: '{{ toJSON(steps.req.res.body) }} '
     test: fromJSON(current.stdout).summary.differences == 0
 ```
 
-## 10. ライブラリ API（案）
+runn 1.x での注意点（runn 1.11.0 で確認）:
+
+- `exec` の実行には `runn run --scopes run:exec` が必要。
+- `stdin: '{{ toJSON(...) }}'` のように JSON だけを展開すると、runn が展開結果を YAML のマップとして再解釈し `invalid stdin` になる。`}}` の後ろに空白を 1 つ置く（`'{{ toJSON(...) }} '`）と文字列のまま渡る。
+- ブロックスカラー（`stdin: |`）では末尾に文字どおりの `\n` が付加され JSON として不正になるため使わない。
+
+実行可能なサンプルは `examples/runn/` を参照。
+
+## 10. ライブラリ API
 
 ```go
 package jsondiff
@@ -253,6 +267,7 @@ func LoadConfig(path string) (*Options, error)
 // expected / actual は json.Decoder.UseNumber() でデコードした値（json.Number を含む any）
 func Compare(expected, actual any, opts *Options) (*Result, error)
 func CompareBytes(expected, actual []byte, opts *Options) (*Result, error)
+func DecodeJSON(r io.Reader) (any, error)
 
 type Result struct {
     Equal       bool         `json:"equal"`
@@ -260,6 +275,7 @@ type Result struct {
     Summary     Summary      `json:"summary"`
 }
 
-func (r *Result) WriteText(w io.Writer, color bool) error
+func (r *Result) WriteText(w io.Writer, color bool) error // 一致時は何も書かない
+func (r *Result) WriteSummary(w io.Writer) error
 func (r *Result) WriteJSON(w io.Writer) error
 ```

@@ -1,0 +1,10 @@
+{
+  "status": "ok",
+  "meta": { "timestamp": "2026-09-26T00:00:00Z", "requestId": "abc" },
+  "items": [
+    { "id": 1, "type": "tax", "price": 100.5, "amount": 3 },
+    { "id": 2, "type": "item", "price": 20.25, "amount": 2 }
+  ],
+  "stats": { "cpu": { "avg": 1.0, "max": 2.0 }, "mem": { "avg": 512.0 } },
+  "tags": ["a", "b", "c"]
+}

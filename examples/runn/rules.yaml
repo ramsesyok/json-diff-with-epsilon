@@ -1,0 +1,16 @@
+default:
+  abs: 1e-6
+ignore:
+  - .meta.timestamp
+  - .. | .requestId?
+unordered:
+  - .tags
+tolerances:
+  - path: .items[].price
+    abs: 0.01
+  - path: .items[] | select(.type == "tax") | .amount
+    abs: 0.5
+  - path: .stats
+    rel: 0.05
+  - path: .stats.cpu.avg
+    abs: 0.001
