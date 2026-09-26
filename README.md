@@ -183,3 +183,7 @@ CI（`.github/workflows/ci.yml`）では次を実行します。
 Actions 画面から「Release」ワークフローを手動実行（`tag` に `v0.2.0` などを指定）しても、タグ作成とリリースを行えます。
 
 ファジングで見つかった失敗入力は `testdata/fuzz/` に置くと、通常の `go test` で回帰テストとして実行されます。
+
+## ライセンス
+
+[MIT License](LICENSE)

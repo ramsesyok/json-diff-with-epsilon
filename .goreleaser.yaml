@@ -22,6 +22,7 @@ archives:
         formats: [zip]
     name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
+      - LICENSE
       - README.md
       - docs/spec.md
 
