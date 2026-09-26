@@ -77,7 +77,7 @@ func TestRun(t *testing.T) {
 		{name: "forced color", args: []string{"--color", e, f.path("diff.json")}, code: 1, stdout: "\x1b[33m"},
 		{name: "json equal", args: []string{"--format", "json", e, f.path("same.json")}, code: 0, stdout: `"equal": true`},
 		{name: "json diff", args: []string{"--format", "json", e, f.path("diff.json")}, code: 1, stdout: `"kind": "changed"`},
-		{name: "version", args: []string{"--version"}, code: 0, stdout: "jsondiff-eps dev"},
+		{name: "version", args: []string{"--version"}, code: 0, stdout: "runnora-diff dev"},
 		{name: "help", args: []string{"-h"}, code: 0, stderr: "Usage:"},
 
 		{name: "missing argument", args: []string{e}, code: 2, stderr: "expected 2 arguments"},

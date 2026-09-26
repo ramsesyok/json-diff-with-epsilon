@@ -1,11 +1,11 @@
 version: 2
 
-project_name: jsondiff-eps
+project_name: runnora-diff
 
 builds:
-  - id: jsondiff-eps
-    main: ./cmd/jsondiff-eps
-    binary: jsondiff-eps
+  - id: runnora-diff
+    main: .
+    binary: runnora-diff
     env:
       - CGO_ENABLED=0
     goos: [linux, darwin, windows]
@@ -44,7 +44,7 @@ release:
     ## インストール
 
     ```sh
-    go install github.com/ramsesyok/json-diff-with-epsilon/cmd/jsondiff-eps@{{ .Tag }}
+    go install github.com/ramsesyok/runnora-diff@{{ .Tag }}
     ```
 
-    または下記のアーカイブから OS / アーキテクチャに合ったものをダウンロードし、`jsondiff-eps` を PATH の通った場所に置いてください。
+    または下記のアーカイブから OS / アーキテクチャに合ったものをダウンロードし、`runnora-diff` を PATH の通った場所に置いてください。

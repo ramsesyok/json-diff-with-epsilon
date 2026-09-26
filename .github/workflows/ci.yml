@@ -72,13 +72,13 @@ jobs:
         with:
           go-version-file: go.mod
       - name: fuzz ${{ matrix.target }}
-        run: go test -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 60s .
+        run: go test -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 60s ./jsondiff
       - name: upload failing input
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: fuzz-${{ matrix.target }}
-          path: testdata/fuzz/${{ matrix.target }}
+          path: jsondiff/testdata/fuzz/${{ matrix.target }}
 
   e2e-runn:
     runs-on: ubuntu-latest
@@ -87,8 +87,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: install jsondiff-eps
-        run: go install ./cmd/jsondiff-eps
+      - name: install runnora-diff
+        run: go install .
       - name: install runn
         run: |
           curl -fsSL -o /tmp/runn.tar.gz \

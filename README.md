@@ -1,7 +1,9 @@
-# jsondiff-eps
+# runnora-diff
 
 数値の許容誤差（epsilon）を考慮して 2 つの JSON を比較するツールです。
 [runn](https://github.com/k1LoW/runn) の `exec` ステップから外部ツールとして呼び出すことを想定しています。
+
+[runnora](https://github.com/ramsesyok/runnora) シリーズのツールです（旧名 `json-diff-with-epsilon`、コマンド名 `jsondiff-eps`。v0.1.x まで）。
 
 - オブジェクトのキー順は無視
 - 数値は絶対誤差（`abs`）/ 相対誤差（`rel`）で比較。既定値に加え、パスごとに指定可能
@@ -15,30 +17,31 @@
 ## インストール
 
 ```sh
-go install github.com/ramsesyok/json-diff-with-epsilon/cmd/jsondiff-eps@latest
+go install github.com/ramsesyok/runnora-diff@latest
 ```
 
-Go がない環境では、[Releases](https://github.com/ramsesyok/json-diff-with-epsilon/releases) から OS / アーキテクチャに合ったアーカイブ（Linux / macOS / Windows × amd64 / arm64）をダウンロードし、`jsondiff-eps` を PATH の通った場所に置いてください。
+Go がない環境では、[Releases](https://github.com/ramsesyok/runnora-diff/releases) から OS / アーキテクチャに合ったアーカイブ（Linux / macOS / Windows × amd64 / arm64）をダウンロードし、`runnora-diff` を PATH の通った場所に置いてください。
 
 ```sh
-# 例: Linux amd64
-curl -fsSL -o jsondiff-eps.tar.gz \
-  https://github.com/ramsesyok/json-diff-with-epsilon/releases/download/v0.1.0/jsondiff-eps_v0.1.0_linux_amd64.tar.gz
-tar -xzf jsondiff-eps.tar.gz jsondiff-eps
-sudo install jsondiff-eps /usr/local/bin/
+# 例: Linux amd64（VERSION はリリースページで確認した最新版に置き換える）
+VERSION=v0.2.0
+curl -fsSL -o runnora-diff.tar.gz \
+  "https://github.com/ramsesyok/runnora-diff/releases/download/${VERSION}/runnora-diff_${VERSION}_linux_amd64.tar.gz"
+tar -xzf runnora-diff.tar.gz runnora-diff
+sudo install runnora-diff /usr/local/bin/
 ```
 
 ## 使い方
 
 ```
-jsondiff-eps [flags] <expected> <actual>
+runnora-diff [flags] <expected> <actual>
 ```
 
 `<expected>` / `<actual>` のどちらか一方に `-` を指定すると標準入力から読み込みます。
 
 ```sh
-jsondiff-eps --config rules.yaml expected.json actual.json
-curl -s https://example.com/api/stats | jsondiff-eps --abs 1e-6 --ignore .meta.timestamp expected.json -
+runnora-diff --config rules.yaml expected.json actual.json
+curl -s https://example.com/api/stats | runnora-diff --abs 1e-6 --ignore .meta.timestamp expected.json -
 ```
 
 | オプション | 説明 |
@@ -117,12 +120,12 @@ tolerances:         # パスごとの許容誤差（配下も含む）
 
 ## runn から使う
 
-runn の `exec` ステップから `jsondiff-eps` を呼び出し、API のレスポンスを期待値ファイルと比較します。
+runn の `exec` ステップから `runnora-diff` を呼び出し、API のレスポンスを期待値ファイルと比較します。
 以下の内容は runn 1.11.0 で動作を確認しています。
 
 ### 前提
 
-- `jsondiff-eps` が PATH の通った場所にあること（[インストール](#インストール)参照）
+- `runnora-diff` が PATH の通った場所にあること（[インストール](#インストール)参照）
 - runn 1.x では `exec` の実行に **`--scopes run:exec`** が必要です
 
 ```sh
@@ -144,7 +147,7 @@ steps:
     test: current.res.status == 200
   compare:
     exec:
-      command: jsondiff-eps --config rules.yaml testdata/stats.json -
+      command: runnora-diff --config rules.yaml testdata/stats.json -
       stdin: '{{ toJSON(steps.get_stats.res.body) }} '
     test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
 ```
@@ -191,7 +194,7 @@ steps:
 ```yaml
   compare:
     exec:
-      command: jsondiff-eps --format json --config rules.yaml testdata/stats.json -
+      command: runnora-diff --format json --config rules.yaml testdata/stats.json -
       stdin: '{{ toJSON(steps.get_stats.res.body) }} '
     test: |
       fromJSON(current.stdout).equal
@@ -224,7 +227,7 @@ steps:
           body: null
   compare_stats:
     exec:
-      command: jsondiff-eps --config rules.yaml {{ vars.expected_dir }}/stats.json -
+      command: runnora-diff --config rules.yaml {{ vars.expected_dir }}/stats.json -
       stdin: '{{ toJSON(steps.get_stats.res.body) }} '
     test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
   get_users:
@@ -234,7 +237,7 @@ steps:
           body: null
   compare_users:
     exec:
-      command: jsondiff-eps --config rules.yaml --unordered . {{ vars.expected_dir }}/users.json -
+      command: runnora-diff --config rules.yaml --unordered . {{ vars.expected_dir }}/users.json -
       stdin: '{{ toJSON(steps.get_users.res.body) }} '
     test: current.stdout == "" && current.stderr == "" && current.exit_code == 0
 ```
@@ -287,7 +290,7 @@ runn run --scopes run:exec http.yml --verbose
 ## ライブラリとして使う
 
 ```go
-import jsondiff "github.com/ramsesyok/json-diff-with-epsilon"
+import "github.com/ramsesyok/runnora-diff/jsondiff"
 
 opts, err := jsondiff.LoadConfig("rules.yaml")
 if err != nil { ... }
@@ -302,8 +305,8 @@ if !res.Equal {
 
 ```sh
 go test -race ./...                                           # ユニットテスト
-go test -run '^$' -fuzz '^FuzzCompare$' -fuzztime 60s .       # ファジング
-go install ./cmd/jsondiff-eps && scripts/e2e-runn.sh          # runn による E2E（runn / python3 / curl が必要）
+go test -run '^$' -fuzz '^FuzzCompare$' -fuzztime 60s ./jsondiff  # ファジング
+go install . && scripts/e2e-runn.sh                            # runn による E2E（runn / python3 / curl が必要）
 ```
 
 CI（`.github/workflows/ci.yml`）では次を実行します。
@@ -322,7 +325,7 @@ CI（`.github/workflows/ci.yml`）では次を実行します。
 `v*` 形式のタグを push すると、`.github/workflows/release.yml` が GoReleaser で各 OS 向けバイナリをビルドし、GitHub Release を作成します。
 Actions 画面から「Release」ワークフローを手動実行（`tag` に `v0.2.0` などを指定）しても、タグ作成とリリースを行えます。
 
-ファジングで見つかった失敗入力は `testdata/fuzz/` に置くと、通常の `go test` で回帰テストとして実行されます。
+ファジングで見つかった失敗入力は `jsondiff/testdata/fuzz/` に置くと、通常の `go test` で回帰テストとして実行されます。
 
 ## ライセンス
 

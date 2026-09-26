@@ -1,4 +1,6 @@
-# jsondiff-eps 仕様書
+# runnora-diff 仕様書
+
+> runnora シリーズの一つ。旧名 `json-diff-with-epsilon`（コマンド名 `jsondiff-eps`、v0.1.x）。
 
 数値データを含む 2 つの JSON を、許容誤差（epsilon）を考慮して比較するツール。
 [runn](https://github.com/k1LoW/runn) の `exec` ステップから外部ツールとして呼び出すことを主な用途とする。
@@ -8,15 +10,15 @@
 | 項目 | 内容 |
 |---|---|
 | 実装言語 | Go |
-| 提供形態 | CLI（`jsondiff-eps`）＋ Go ライブラリ |
-| モジュールパス | `github.com/ramsesyok/json-diff-with-epsilon` |
-| ライブラリパッケージ | ルート直下 `package jsondiff` |
-| CLI | `cmd/jsondiff-eps/main.go` |
+| 提供形態 | CLI（`runnora-diff`）＋ Go ライブラリ |
+| モジュールパス | `github.com/ramsesyok/runnora-diff` |
+| ライブラリパッケージ | `github.com/ramsesyok/runnora-diff/jsondiff`（`package jsondiff`） |
+| CLI | リポジトリ直下の `main.go`（`go install github.com/ramsesyok/runnora-diff@latest`） |
 
 ## 2. 入力
 
 ```
-jsondiff-eps [flags] <expected> <actual>
+runnora-diff [flags] <expected> <actual>
 ```
 
 - 位置引数は 2 つ。1 つ目が期待値（expected）、2 つ目が実測値（actual）。
@@ -218,7 +220,7 @@ steps:
         get: {}
   compare:
     exec:
-      command: jsondiff-eps --config rules.yaml testdata/expected.json -
+      command: runnora-diff --config rules.yaml testdata/expected.json -
       stdin: '{{ toJSON(steps.req.res.body) }} '
     test: current.exit_code == 0
 ```
@@ -228,7 +230,7 @@ JSON 出力を条件判定に使う場合:
 ```yaml
   compare:
     exec:
-      command: jsondiff-eps --format json -c rules.yaml testdata/expected.json -
+      command: runnora-diff --format json -c rules.yaml testdata/expected.json -
       stdin: '{{ toJSON(steps.req.res.body) }} '
     test: fromJSON(current.stdout).summary.differences == 0
 ```

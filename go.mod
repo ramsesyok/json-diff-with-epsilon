@@ -1,4 +1,4 @@
-module github.com/ramsesyok/json-diff-with-epsilon
+module github.com/ramsesyok/runnora-diff
 
 go 1.24.7
 
